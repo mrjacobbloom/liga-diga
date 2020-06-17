@@ -1,10 +1,12 @@
 # Liga Diga
 
-![Liga Diga in action](https://raw.githubusercontent.com/mrjacobbloom/liga-diga/master/demo.gif)
+![Liga Diga in action](https://raw.githubusercontent.com/mrjacobbloom/liga-diga/master/demo.gif?raw=true)
 
 Liga Diga is a font that uses ligatures to automagically translate the top ~800
 most common English words into Spanish. Your days of using Google Translate are
 over!
+
+Download it here: [Downloads](https://github.com/mrjacobbloom/liga-diga/tree/master/dist)
 
 ## How the build process works
 
@@ -30,7 +32,8 @@ be created via US keyboard or that aren't requried for Spanish.
 
 The word list was translated in chunks via Google Translate, and then manually
 tweaked to remove words with punctuation. It includes over 5000 words, but
-Fontmake couldn't handle that many.
+Fontmake couldn't handle that many. It exists in this repo as 2 parallel text
+files, `en.txt` and `es.txt` where each line represents a word.
 
 ## Credits
 
