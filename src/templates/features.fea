@@ -1,3 +1,5 @@
+@LETTER = [A Aacute B C D E Eacute F G H I Iacute J K L M N Ntilde O Oacute P Q R S T U Uacute V W X Y Yacute z a aacute b c d e eacute f g h i iacute j k l m n ntilde o oacute p q r s t u uacute v w x y yacute z];
+
 feature liga {
 # automatic
 ### INJECT ###

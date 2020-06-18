@@ -4,15 +4,27 @@
 
 /**
  * Default leading added between each character in a ligature
+ * For scale, capital letter A is 573 of these units wide.
  * */
 const LEADING = 0;
 
 /**
- * Maximum number of ligatures to generate
- * It craps out somewhere between 800 and 2000
- * May come out to slightly lower because words that are the same in both languages are skipped
+ * If true, produce 2 ligatures for every translation: one for the word all lowercase,
+ * and one for the first letter uppercase and the rest lowercase
  */
-const MAX_LIGS = 800;
+const DO_CAPITALIZED = true;
+
+/**
+ * If true, generates more substitution rules to make word-boundaries work. Will
+ * probably force you to lower MAX_LIGS by a factor of 2-3
+ */
+const DO_WORD_BOUNDARIES = true;
+
+/**
+ * Number of ligatures to generate
+ * (the number of translations, or if DO_CAPITALIZED is on, twice the number of translations)
+ */
+const MAX_LIGS = 600;
 
 
 
@@ -34,7 +46,7 @@ const capitalize = ([first, ...rest]) => [first.toUpperCase(), ...rest];
 (async () => {
   // Assert we're running in the src folder so we don't mess with
   // directories we don't own
-  assert(process.cwd().endsWith('liga-diga'));
+  assert.equal(process.cwd().endsWith('liga-diga'), true);
 
   // create tmp folder and copy base font source files
   signpost('Creating tmp/Liga-Diga.ufo');
@@ -42,6 +54,7 @@ const capitalize = ([first, ...rest]) => [first.toUpperCase(), ...rest];
   await fs.mkdir('./tmp');
   await fs.copy('./src/Liga-Diga.ufo.base', './tmp/Liga-Diga.ufo');
 
+  let actual_ligs_count = 0;
   /** @type {string[]} */ const contents_inject = [];
   /** @type {{ line: string; length: number }[]} */ const features_inject = [];
   /** @type {string[]} */ const lib_inject = [];
@@ -50,8 +63,11 @@ const capitalize = ([first, ...rest]) => [first.toUpperCase(), ...rest];
 
   /** @type {(name: string, from_glyphs: string[], to_glyphs: string[]) => Promise<void>} */
   const doLigature = async (name, from_glyphs, to_glyphs) => {
+    actual_ligs_count++;
     contents_inject.push(`<key>${name}</key> <string>${name}.glif</string>`);
-    features_inject.push({ line: `sub ${from_glyphs.join(' ')} by ${name};`, length: from_glyphs.length });
+    const fromWithTicks = from_glyphs.map(g => `${g}'`).join(' ');
+    const ignore = DO_WORD_BOUNDARIES ? `ignore sub @LETTER ${fromWithTicks}, ${fromWithTicks} @LETTER; ` : '';
+    features_inject.push({ line: `${ignore}sub ${fromWithTicks} by ${name};`, length: from_glyphs.length });
     lib_inject.push(`<string>${name}</string>`);
 
     let glif_rendered = glif_template;
@@ -71,23 +87,26 @@ const capitalize = ([first, ...rest]) => [first.toUpperCase(), ...rest];
   const es = readline.createInterface({ input: fs.createReadStream('./src/es.txt'), crlfDelay: Infinity })[Symbol.asyncIterator]();
 
   signpost('Generating ligature files and collecting metadata');
-  for (let index = 0; index < MAX_LIGS; index++) {
+  for (let index = 0; actual_ligs_count < MAX_LIGS; index++) {
     let { done: done1, value: from } = await en.next();
     let { done: done2, value: to } = await es.next();
     if (done1 || done2) break;
     from = from.toLowerCase();
     to = to.toLowerCase();
-    if (from === to) continue; // avoid duplicates, we don't want a noop ligature
+    if (from === to) continue; // avoid translating a word into itself
+
+    // Our glyph names will be liga_###_lowe because I don't trust words in English nor Spanish to be valid file/glyph names
 
     signpost(`Generating liga_${index} ${from} -> ${to}`, 1);
-    // I don't trust words in English nor Spanish to be valid file/glyph names
     /** @type {string[]} */ const from_glyphs_lower = [...from].map((glyph) => GLYPHNAMES[glyph] || glyph);
     /** @type {string[]} */ const to_glyphs_lower = [...to].map((glyph) => GLYPHNAMES[glyph] || glyph);
     await doLigature(`liga_${index}_lower`, from_glyphs_lower, to_glyphs_lower);
     
-    /** @type {string[]} */ const from_glyphs_capitalized = capitalize([...from]).map((glyph) => GLYPHNAMES[glyph] || glyph);
-    /** @type {string[]} */ const to_glyphs_capitalized = capitalize([...to]).map((glyph) => GLYPHNAMES[glyph] || glyph);
-    await doLigature(`liga_${index}_capitalized`, from_glyphs_capitalized, to_glyphs_capitalized);
+    if (DO_CAPITALIZED) {
+      /** @type {string[]} */ const from_glyphs_capitalized = capitalize([...from]).map((glyph) => GLYPHNAMES[glyph] || glyph);
+      /** @type {string[]} */ const to_glyphs_capitalized = capitalize([...to]).map((glyph) => GLYPHNAMES[glyph] || glyph);
+      await doLigature(`liga_${index}_capitalized`, from_glyphs_capitalized, to_glyphs_capitalized);
+    }
   };
 
   signpost('Generating glyphs/contents.plist');
@@ -96,8 +115,6 @@ const capitalize = ([first, ...rest]) => [first.toUpperCase(), ...rest];
   await fs.writeFile('./tmp/Liga-Diga.ufo/glyphs/contents.plist', contents_rendered);
 
   signpost('Generating features.fea');
-  // sort for priority
-  features_inject.sort((a, b) => b.length - a.length);
   const features_template = (await fs.readFile('./src/templates/features.fea')).toString();
   const features_rendered = features_template.replace('### INJECT ###', features_inject.map(o => o.line).join('\n'));
   await fs.writeFile('./tmp/Liga-Diga.ufo/features.fea', features_rendered);
@@ -113,6 +130,14 @@ const capitalize = ([first, ...rest]) => [first.toUpperCase(), ...rest];
     const cp = exec('npm run fontmake', (err) => (err ? rej(err) : res()));
     cp.stdout.pipe(process.stdout);
     cp.stderr.pipe(process.stderr);
+    cp.stderr.on('data', (( /** @type {string} */ chunk) => {
+      if(chunk.includes('OTLOffsetOverflowError')) {
+        // It doesn't fail for several more steps, but this is a reliable sign that it will
+        cp.kill(1);
+        console.log(colors.red('OTLOffsetOverflowError: too many ligatures, try lowering MAX_LIGS or fiddling with other settings'));
+        process.exit(1);
+      }
+    }))
   });
 
   // signpost('Cleaning up tmp');

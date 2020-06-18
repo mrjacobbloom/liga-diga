@@ -2,7 +2,7 @@
 
 ![Liga Diga in action](https://raw.githubusercontent.com/mrjacobbloom/liga-diga/master/demo.gif?raw=true)
 
-Liga Diga is a font that uses ligatures to automagically translate the top ~800
+Liga Diga is a font that uses ligatures to automagically translate the top 300
 most common English words into Spanish. Your days of using Google Translate are
 over!
 
@@ -22,13 +22,17 @@ Download it here: [Downloads](https://github.com/mrjacobbloom/liga-diga/tree/mas
 
 ...all of this logic can be found in `src/index.js`
 
+The build process requires Node >=11.4 because it requires
+`readline.Interface[Symbol.asyncIterator]`
+
 ## Notes
 
 The font is a very simplified version of Fira Sans Regular. To simplify things
 for myself, I've removed all kerning data and most characters that can't easily
 be created via US keyboard or that aren't requried for Spanish.
 
-`src/index.js` has some constants you can fiddle with at the top of the file, the most important being the max number of ligatures generated.
+`src/index.js` has some constants you can fiddle with at the top of the file
+the most important being the max number of ligatures generated.
 
 The word list was translated in chunks via Google Translate, and then manually
 tweaked to remove words with punctuation. It includes over 5000 words, but

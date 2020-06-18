@@ -34,7 +34,7 @@
 	<key>openTypeNamePreferredFamilyName</key>
 	<string>Liga Diga</string>
 	<key>openTypeNamePreferredSubfamilyName</key>
-	<string>Two</string>
+	<string>Regular</string>
 	<key>openTypeOS2TypoAscender</key>
 	<integer>935</integer>
 	<key>openTypeOS2TypoDescender</key>
@@ -92,7 +92,7 @@
 		<integer>92</integer>
 	</array>
 	<key>styleMapFamilyName</key>
-	<string>Liga Diga Two</string>
+	<string>Liga Diga Regular</string>
 	<key>styleMapStyleName</key>
 	<string>regular</string>
 	<key>styleName</key>
