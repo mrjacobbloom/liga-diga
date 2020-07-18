@@ -135,7 +135,6 @@ const capitalize = ([first, ...rest]) => [first.toUpperCase(), ...rest];
   // Algorithmic complexity is not a concern for this personal project
   // I don't expect anyone but me to ever run this, calm down you big-egoed nurd
   if (DO_WORD_BOUNDARIES) {
-    // Then modify the actual substitution rule strings that are rendered to features.fea
     for(const feature1 of features) {
       for(const feature2 of features) {
         if (feature1 !== feature2 && feature2.fromWithTicks.includes(feature1.fromWithTicks)) {
