@@ -56,8 +56,16 @@ const capitalize = ([first, ...rest]) => [first.toUpperCase(), ...rest];
 
   let actual_ligs_count = 0;
   /** @type {string[]} */ const contents_inject = [];
-  /** @type {{ line: string; length: number }[]} */ const features_inject = [];
   /** @type {string[]} */ const lib_inject = [];
+  /** @typedef {{
+   *   name: string;
+   *   length: number;
+   *   fromWithTicks: string;
+   *   subRule: string;
+   *   leftIgnore: string | null;
+   *   rightIgnore: string | null
+   * }} Feature */
+  /** @type {Feature[]} */ const features = [];
 
   const glif_template = (await fs.readFile('./src/templates/liga.glif')).toString();
 
@@ -66,8 +74,18 @@ const capitalize = ([first, ...rest]) => [first.toUpperCase(), ...rest];
     actual_ligs_count++;
     contents_inject.push(`<key>${name}</key> <string>${name}.glif</string>`);
     const fromWithTicks = from_glyphs.map(g => `${g}'`).join(' ');
-    const ignore = DO_WORD_BOUNDARIES ? `ignore sub @LETTER ${fromWithTicks}, ${fromWithTicks} @LETTER; ` : '';
-    features_inject.push({ line: `${ignore}sub ${fromWithTicks} by ${name};`, length: from_glyphs.length });
+    let leftIgnore = null, rightIgnore = null;
+    if (DO_WORD_BOUNDARIES) {
+      leftIgnore = `ignore sub @LETTER ${fromWithTicks}; `
+      rightIgnore = `ignore sub ${fromWithTicks} @LETTER; `
+    }
+    features.push({
+      name,
+      leftIgnore, rightIgnore,
+      fromWithTicks,
+      length: from_glyphs.length,
+      subRule: `sub ${fromWithTicks} by ${name};`,
+    });
     lib_inject.push(`<string>${name}</string>`);
 
     let glif_rendered = glif_template;
@@ -95,7 +113,7 @@ const capitalize = ([first, ...rest]) => [first.toUpperCase(), ...rest];
     to = to.toLowerCase();
     if (from === to) continue; // avoid translating a word into itself
 
-    // Our glyph names will be liga_###_lowe because I don't trust words in English nor Spanish to be valid file/glyph names
+    // Our glyph names will be liga_###_lower because I don't trust words in English nor Spanish to be valid file/glyph names
 
     signpost(`Generating liga_${index} ${from} -> ${to}`, 1);
     /** @type {string[]} */ const from_glyphs_lower = [...from].map((glyph) => GLYPHNAMES[glyph] || glyph);
@@ -108,6 +126,29 @@ const capitalize = ([first, ...rest]) => [first.toUpperCase(), ...rest];
       await doLigature(`liga_${index}_capitalized`, from_glyphs_capitalized, to_glyphs_capitalized);
     }
   };
+  signpost('Sorting substitution rules');
+  // The features.fea spec specifically says you don't have to do this, but FOntMake apparently needs it anyway
+  // see http://adobe-type-tools.github.io/afdko/OpenTypeFeatureFileSpecification.html#5d-gsub-lookuptype-4-ligature-substitution
+  features.sort((a, b) => b.length - a.length);
+
+  signpost('Removing conflicting IGNORE SUB rules');
+  // Algorithmic complexity is not a concern for this personal project
+  // I don't expect anyone but me to ever run this, calm down you big-egoed nurd
+  if (DO_WORD_BOUNDARIES) {
+    // Then modify the actual substitution rule strings that are rendered to features.fea
+    for(const feature1 of features) {
+      for(const feature2 of features) {
+        if (feature1 !== feature2 && feature2.fromWithTicks.includes(feature1.fromWithTicks)) {
+          if (!feature2.fromWithTicks.endsWith(feature1.fromWithTicks)) {
+            feature1.rightIgnore = null;
+          }
+          if (!feature2.fromWithTicks.startsWith(feature1.fromWithTicks)) {
+            feature1.leftIgnore = null;
+          }
+        }
+      }
+    }
+  }
 
   signpost('Generating glyphs/contents.plist');
   const contents_template = (await fs.readFile('./src/templates/contents.plist')).toString();
@@ -116,7 +157,7 @@ const capitalize = ([first, ...rest]) => [first.toUpperCase(), ...rest];
 
   signpost('Generating features.fea');
   const features_template = (await fs.readFile('./src/templates/features.fea')).toString();
-  const features_rendered = features_template.replace('### INJECT ###', features_inject.map(o => o.line).join('\n'));
+  const features_rendered = features_template.replace('### INJECT ###', features.map(f => `${f.leftIgnore || ''}${f.rightIgnore || ''}${f.subRule}`).join('\n'));
   await fs.writeFile('./tmp/Liga-Diga.ufo/features.fea', features_rendered);
 
   signpost('Generating lib.plist');
